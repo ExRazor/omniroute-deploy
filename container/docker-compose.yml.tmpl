@@ -1,0 +1,17 @@
+services:
+  omniroute:
+    image: docker.io/diegosouzapw/omniroute:latest
+    ports:
+      - "127.0.0.1:__PORT__:__PORT__"
+      - "127.0.0.1:__LIVE_WS_PORT__:__LIVE_WS_PORT__"
+    volumes:
+      - "__HOST_DATA_DIR__:/app/data:Z"
+    env_file:
+      - __ENV_FILE__
+    stop_grace_period: 40s
+    restart: always
+    networks:
+      - omniroute-net
+
+networks:
+  omniroute-net:

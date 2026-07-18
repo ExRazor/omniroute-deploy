@@ -1,0 +1,20 @@
+[Unit]
+Description=OmniRoute - Free AI Gateway
+After=network-online.target
+
+[Container]
+Image=docker.io/diegosouzapw/omniroute:latest
+ContainerName=omniroute
+Network=omniroute.network
+PublishPort=127.0.0.1:__PORT__:__PORT__
+PublishPort=127.0.0.1:__LIVE_WS_PORT__:__LIVE_WS_PORT__
+Volume=__HOST_DATA_DIR__:/app/data:Z
+EnvironmentFile=__ENV_FILE__
+# SQLite WAL needs time to checkpoint on stop, do not SIGKILL too quickly
+PodmanArgs=--stop-timeout=40
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
