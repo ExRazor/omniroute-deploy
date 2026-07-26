@@ -22,9 +22,11 @@ server {
 
     client_max_body_size 20m;
 
-    # WebSocket live dashboard updates (Combo Studio). Unlike SSE: needs Upgrade header.
+    # WebSocket live dashboard updates (Combo Studio). Served on the main PORT,
+    # but needs Upgrade headers — the / location sets Connection "" for SSE cleanliness,
+    # which would break the WS handshake, so it gets its own location.
     location /live-ws {
-        proxy_pass http://127.0.0.1:__LIVE_WS_PORT__;
+        proxy_pass http://127.0.0.1:__PORT__;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

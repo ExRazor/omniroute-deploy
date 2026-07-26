@@ -8,6 +8,7 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 # Podman-only paths
 QUADLET_DIR="$HOME/.config/containers/systemd"
 QUADLET_FILE="$QUADLET_DIR/omniroute.container"
+REDIS_QUADLET="$QUADLET_DIR/omniroute-redis.container"
 NETWORK_QUADLET="$QUADLET_DIR/omniroute.network"
 
 # --- Engine detection ---
@@ -54,14 +55,20 @@ if [[ "$CONTAINER_CMD" == "podman" ]]; then
     systemctl --user disable omniroute.service 2>/dev/null || true
     echo "🛑 Service omniroute stopped & disabled"
   fi
+  if systemctl --user list-unit-files 2>/dev/null | grep -q omniroute-redis.service; then
+    systemctl --user stop omniroute-redis.service 2>/dev/null || true
+    systemctl --user disable omniroute-redis.service 2>/dev/null || true
+    echo "🛑 Service omniroute-redis stopped & disabled"
+  fi
 
-  if [[ -f "$QUADLET_FILE" || -f "$NETWORK_QUADLET" ]]; then
-    rm -f "$QUADLET_FILE" "$NETWORK_QUADLET"
+  if [[ -f "$QUADLET_FILE" || -f "$REDIS_QUADLET" || -f "$NETWORK_QUADLET" ]]; then
+    rm -f "$QUADLET_FILE" "$REDIS_QUADLET" "$NETWORK_QUADLET"
     systemctl --user daemon-reload
-    echo "🗑️  Quadlets removed: omniroute, network"
+    echo "🗑️  Quadlets removed: omniroute, omniroute-redis, network"
   fi
 
   podman rm -f omniroute >/dev/null 2>&1 && echo "🗑️  Container omniroute removed" || true
+  podman rm -f redis >/dev/null 2>&1 && echo "🗑️  Container redis removed" || true
 
   if [[ "$REMOVE_IMAGES" == true ]]; then
     podman rmi -f docker.io/diegosouzapw/omniroute:latest >/dev/null 2>&1 \

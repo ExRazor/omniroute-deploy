@@ -1,0 +1,19 @@
+[Unit]
+Description=OmniRoute - Redis sidecar (rate limiter / cache)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/redis:8-alpine
+ContainerName=redis
+Network=omniroute.network
+Exec=redis-server --save 60 1 --loglevel warning
+Volume=__HOST_DATA_DIR__/redis:/data:Z
+HealthCmd=redis-cli ping
+# SQLite-style graceful shutdown for Redis RDB checkpointing on stop
+PodmanArgs=--stop-timeout=40
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -58,6 +58,11 @@ if [[ -z "${API_KEY_SECRET:-}" ]]; then
   sed -i "s#^API_KEY_SECRET=.*#API_KEY_SECRET=${API_KEY_SECRET}#" "$ENV_FILE"
   changed=true
 fi
+if [[ -z "${OMNIROUTE_WS_BRIDGE_SECRET:-}" ]]; then
+  OMNIROUTE_WS_BRIDGE_SECRET="$(openssl rand -hex 32)"
+  sed -i "s#^OMNIROUTE_WS_BRIDGE_SECRET=.*#OMNIROUTE_WS_BRIDGE_SECRET=${OMNIROUTE_WS_BRIDGE_SECRET}#" "$ENV_FILE"
+  changed=true
+fi
 [[ "$changed" == true ]] && echo "🔐 Empty secrets generated & saved to .env"
 
 # Sync CONTAINER_HOST in .env with the detected engine
@@ -83,13 +88,10 @@ fi
 
 HOST_DATA_DIR="${HOST_DATA_DIR:-$SCRIPT_DIR/data}"
 PORT="${PORT:-20128}"
-LIVE_WS_PORT="${LIVE_WS_PORT:-20132}"
 
-# ponytail: auto-derive live-WS exposure vars from DOMAIN so the user only sets
-# DOMAIN in .env. Persist to .env so the container (reading via EnvironmentFile
-# / env_file) sees them. The WS server image default binds 127.0.0.1 — unreachable
-# from host port publish, so override to 0.0.0.0.
-ensure_live_ws_env() {
+# Auto-derive domain-scoped vars from DOMAIN so the user only sets DOMAIN in .env.
+# Persist to .env so the container (via EnvironmentFile/env_file) sees them.
+ensure_env() {
   local name="$1" val="$2"
   if [[ -z "${!name:-}" ]]; then
     if grep -q "^${name}=" "$ENV_FILE"; then
@@ -101,9 +103,14 @@ ensure_live_ws_env() {
     echo "ℹ️  ${name} auto-set to ${val}"
   fi
 }
-ensure_live_ws_env LIVE_WS_HOST 0.0.0.0
-ensure_live_ws_env LIVE_WS_ALLOWED_ORIGINS "https://${DOMAIN}"
-ensure_live_ws_env NEXT_PUBLIC_LIVE_WS_PUBLIC_URL "wss://${DOMAIN}/live-ws"
+# LiveWS daemon rejects browser origins not in its allow-list (defaults are localhost-only).
+ensure_env LIVE_WS_ALLOWED_ORIGINS "https://${DOMAIN}"
+# Public origin for OAuth callbacks, dashboard links, generated URLs.
+ensure_env NEXT_PUBLIC_BASE_URL "https://${DOMAIN}"
+# Public WS URL for Combo Studio live view. The image's build-time default
+# hardcodes :20132 (unpublished); the runtime handshake (/api/v1/ws?handshake=1)
+# reads this and overrides the browser's default. Must be wss:// on HTTPS.
+ensure_env NEXT_PUBLIC_LIVE_WS_PUBLIC_URL "wss://${DOMAIN}/live-ws"
 
 # --- Auto-detect base domain for cert path, if CERT_BASE_DOMAIN is empty ---
 if [[ -z "${CERT_BASE_DOMAIN:-}" ]]; then
@@ -111,7 +118,7 @@ if [[ -z "${CERT_BASE_DOMAIN:-}" ]]; then
   echo "ℹ️  CERT_BASE_DOMAIN auto-detected from DOMAIN: ${CERT_BASE_DOMAIN}"
 fi
 
-mkdir -p "$HOST_DATA_DIR"
+mkdir -p "$HOST_DATA_DIR/redis"
 [[ "$CONTAINER_CMD" == "podman" ]] && mkdir -p "$QUADLET_DIR"
 
 # ==================== Podman path ====================
@@ -125,16 +132,26 @@ if [[ "$CONTAINER_CMD" == "podman" ]]; then
   # vanish on restart & /app/data stays empty. Guard `stat -c %u != 1000` skipped
   # this when the host user is UID 1000 (most common case) -> bug.
   podman unshare chown -R 1000:1000 "$HOST_DATA_DIR"
-  echo "🔧 Permission $HOST_DATA_DIR chowned to 1000:1000 (UID of 'node' user in container)"
+  # Redis 8-alpine runs as UID 999; chown only the redis subdir so it can write /data.
+  podman unshare chown -R 999:999 "$HOST_DATA_DIR/redis"
+  echo "🔧 Permission $HOST_DATA_DIR chowned to 1000:1000 (node) + redis subdir to 999:999 (redis)"
 
   rendered="$(sed \
     -e "s#__PORT__#${PORT}#g" \
-    -e "s#__LIVE_WS_PORT__#${LIVE_WS_PORT}#g" \
     -e "s#__HOST_DATA_DIR__#${HOST_DATA_DIR}#g" \
     -e "s#__ENV_FILE__#${ENV_FILE}#g" \
     "$TMPL_FILE")"
   echo "$rendered" > "$QUADLET_FILE"
   echo "✅ Quadlet written to $QUADLET_FILE"
+
+  # Redis sidecar quadlet (unit: omniroute-redis.service; DNS hostname `redis` via ContainerName).
+  REDIS_TMPL="$CONTAINER_SRC/omniroute-redis.container.tmpl"
+  REDIS_QUADLET="$QUADLET_DIR/omniroute-redis.container"
+  rendered="$(sed \
+    -e "s#__HOST_DATA_DIR__#${HOST_DATA_DIR}#g" \
+    "$REDIS_TMPL")"
+  echo "$rendered" > "$REDIS_QUADLET"
+  echo "✅ Redis quadlet written to $REDIS_QUADLET"
 
   cp "$NETWORK_FILE" "$QUADLET_DIR/omniroute.network"
 
@@ -163,10 +180,14 @@ else
     sudo chown 1000:1000 "$HOST_DATA_DIR"
     echo "🔧 Permission $HOST_DATA_DIR chowned to 1000:1000 (UID of 'node' user in container)"
   fi
+  # Redis 8-alpine runs as UID 999; chown only the redis subdir so it can write /data.
+  if [[ "$(stat -c '%u' "$HOST_DATA_DIR/redis")" != "999" ]]; then
+    sudo chown 999:999 "$HOST_DATA_DIR/redis"
+    echo "🔧 Permission $HOST_DATA_DIR/redis chowned to 999:999 (UID of 'redis' user in container)"
+  fi
 
   rendered="$(sed \
     -e "s#__PORT__#${PORT}#g" \
-    -e "s#__LIVE_WS_PORT__#${LIVE_WS_PORT}#g" \
     -e "s#__HOST_DATA_DIR__#${HOST_DATA_DIR}#g" \
     -e "s#__ENV_FILE__#${ENV_FILE}#g" \
     "$COMPOSE_TMPL")"
@@ -220,7 +241,6 @@ rendered="$(sed \
   -e "s#__DOMAIN__#${DOMAIN}#g" \
   -e "s#__CERT_BASE_DOMAIN__#${CERT_BASE_DOMAIN}#g" \
   -e "s#__PORT__#${PORT}#g" \
-  -e "s#__LIVE_WS_PORT__#${LIVE_WS_PORT}#g" \
   "$NGINX_TMPL")"
 
 if [[ "$CF_AUTH_ORIGIN_PULLS" == "true" ]]; then
