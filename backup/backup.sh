@@ -155,12 +155,22 @@ EXCLUDES=(
 )
 
 # Archive the data dir contents (relative paths so restore extracts directly)
-( cd "$HOST_DATA_DIR" && "$SEVENZIP" a -mx=5 "$BACKUP_FILE" . "${EXCLUDES[@]}" )
+# BACKUP_7Z_SUDO=true → run 7z via sudo -n (needed when data dir is root-owned,
+# e.g. container bind-mount); archive is chowned back to the invoking user.
+SEVENZIP_CMD=("$SEVENZIP")
+if [ "${BACKUP_7Z_SUDO:-false}" = "true" ]; then
+    SEVENZIP_CMD=(sudo -n "$SEVENZIP")
+fi
+( cd "$HOST_DATA_DIR" && "${SEVENZIP_CMD[@]}" a -mx=5 "$BACKUP_FILE" . "${EXCLUDES[@]}" )
 SEVENZIP_EXIT=$?
 # 7z exit codes: 0 = OK, 1 = warning (e.g. file vanished during scan) — archive is still valid
 if [ "$SEVENZIP_EXIT" -ne 0 ] && [ "$SEVENZIP_EXIT" -ne 1 ]; then
     echo "Error: Backup failed (7-Zip exit code $SEVENZIP_EXIT)"
     exit 1
+fi
+# Restore ownership of the archive to the invoking user (7z ran as root via sudo)
+if [ "${BACKUP_7Z_SUDO:-false}" = "true" ]; then
+    chown "$(id -u):$(id -g)" "$BACKUP_FILE" 2>/dev/null || true
 fi
 
 # Validate backup file exists and has size
