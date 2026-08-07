@@ -352,8 +352,11 @@ echo "Location: $SELECTED_LOCATION"
 
 # Validate backup file integrity before restore
 echo "Validating backup file integrity..."
-if ! "$SEVENZIP" t "$BACKUP_FILE" > /dev/null 2>&1; then
-    echo "Error: Backup file is corrupted or invalid"
+"$SEVENZIP" t "$BACKUP_FILE" > /dev/null 2>&1
+SEVENZIP_T_EXIT=$?
+# 7z exit codes: 0 = OK, 1 = warning — archive is readable and valid
+if [ "$SEVENZIP_T_EXIT" -ne 0 ] && [ "$SEVENZIP_T_EXIT" -ne 1 ]; then
+    echo "Error: Backup file is corrupted or invalid (7-Zip exit code $SEVENZIP_T_EXIT)"
     echo "File: $BACKUP_FILE"
     exit 1
 fi

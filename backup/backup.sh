@@ -146,6 +146,7 @@ EXCLUDES=(
     -xr!tmp_fuzz
     -xr!lsp
     -xr!bin
+    -xr!pulse
     -xr!models_dev_cache.json
     -xr!provider_models_cache.json
     -xr!*.log
@@ -154,8 +155,11 @@ EXCLUDES=(
 )
 
 # Archive the data dir contents (relative paths so restore extracts directly)
-if ! ( cd "$HOST_DATA_DIR" && "$SEVENZIP" a -mx=5 "$BACKUP_FILE" . "${EXCLUDES[@]}" ); then
-    echo "Error: Backup failed"
+( cd "$HOST_DATA_DIR" && "$SEVENZIP" a -mx=5 "$BACKUP_FILE" . "${EXCLUDES[@]}" )
+SEVENZIP_EXIT=$?
+# 7z exit codes: 0 = OK, 1 = warning (e.g. file vanished during scan) — archive is still valid
+if [ "$SEVENZIP_EXIT" -ne 0 ] && [ "$SEVENZIP_EXIT" -ne 1 ]; then
+    echo "Error: Backup failed (7-Zip exit code $SEVENZIP_EXIT)"
     exit 1
 fi
 
