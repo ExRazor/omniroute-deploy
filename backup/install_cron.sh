@@ -5,6 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup.sh"
 LOG_FILE="${SCRIPT_DIR}/logs/backup.log"
 
+# Load .env from the parent deploy dir so BACKUP_CRON_SCHEDULE / BACKUP_CRON_MODE
+# set in .env are picked up automatically.
+ENV_FILE="${SCRIPT_DIR}/../.env"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
 # Cron schedule & mode can be pre-set via .env:
 #   BACKUP_CRON_SCHEDULE  crontab format, e.g. "0 0 * * *" (daily midnight)
 #   BACKUP_CRON_MODE      "remote" (local + rclone upload) or "local" (local only)
