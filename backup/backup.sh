@@ -141,6 +141,7 @@ EXCLUDES=(
     -xr!sandboxes
     -xr!desktop
     -xr!workspace
+    -xr!redis
     -xr!*.log
     -xr!*.pid
     -xr!*.lock
