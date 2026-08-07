@@ -198,6 +198,11 @@ EXCLUDES=(
     -xr!desktop
     -xr!workspace
     -xr!redis
+    -xr!tmp_fuzz
+    -xr!lsp
+    -xr!bin
+    -xr!models_dev_cache.json
+    -xr!provider_models_cache.json
     -xr!*.log
     -xr!*.pid
     -xr!*.lock
