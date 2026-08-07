@@ -90,7 +90,7 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT INT TERM
 
 BACKUP_DIR="${SCRIPT_DIR}/backups"
-BACKUP_FILENAME="${PREFIX}_$(date +%Y%m%d).7z"
+BACKUP_FILENAME="${PREFIX}_$(date +%Y%m%d_%H%M).7z"
 BACKUP_FILE="${BACKUP_DIR}/${BACKUP_FILENAME}"
 
 # Create backup directory if it doesn't exist
@@ -203,9 +203,9 @@ if [ "$LOCAL_ONLY" = false ]; then
             echo "Error: Cutoff date calculation error ($CUTOFF_DATE >= $TODAY). Skipping remote backup cleanup."
         else
             # Get list of remote backups
-            rclone lsf "${REMOTE_PATH}" --files-only | grep "^${PREFIX}_[0-9]\{8\}\.7z$" | while read -r filename; do
-                # Extract date from filename (PREFIX_YYYYMMDD.7z)
-                file_date=$(echo "$filename" | sed "s/${PREFIX}_\([0-9]\{8\}\)\.7z/\1/")
+            rclone lsf "${REMOTE_PATH}" --files-only | grep "^${PREFIX}_[0-9]\{8\}_[0-9]\{4\}\.7z$" | while read -r filename; do
+                # Extract date from filename (PREFIX_YYYYMMDD_HHMM.7z)
+                file_date=$(echo "$filename" | grep -oE '[0-9]{8}' | head -1)
 
                 # Compare dates (numeric comparison)
                 if [ "$file_date" -lt "$CUTOFF_DATE" ]; then

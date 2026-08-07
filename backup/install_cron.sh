@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_SCRIPT="${SCRIPT_DIR}/backup.sh"
 LOG_FILE="${SCRIPT_DIR}/logs/backup.log"
 
+# Cron schedule & mode can be pre-set via .env:
+#   BACKUP_CRON_SCHEDULE  crontab format, e.g. "0 0 * * *" (daily midnight)
+#   BACKUP_CRON_MODE      "remote" (local + rclone upload) or "local" (local only)
+# Empty values -> interactive prompts below.
+BACKUP_CRON_SCHEDULE="${BACKUP_CRON_SCHEDULE:-}"
+BACKUP_CRON_MODE="${BACKUP_CRON_MODE:-}"
+
 # Check if backup script exists
 if [ ! -f "$BACKUP_SCRIPT" ]; then
     echo "Error: Backup script not found at $BACKUP_SCRIPT"
@@ -23,87 +30,111 @@ echo "Backup script: $BACKUP_SCRIPT"
 echo "Log file: $LOG_FILE"
 echo ""
 
-# Ask user for schedule
-echo "Select backup schedule:"
-echo "1) Daily at 12:00 AM (default)"
-echo "2) Daily at 2:00 AM"
-echo "3) Daily at 3:00 AM"
-echo "4) Every 6 hours"
-echo "5) Every 12 hours"
-echo "6) Weekly (Sunday at 2:00 AM)"
-echo "7) Custom (manual crontab entry)"
-echo "8) Cancel"
-echo ""
+# Ask user for schedule (skip if BACKUP_CRON_SCHEDULE set in .env)
+if [ -n "$BACKUP_CRON_SCHEDULE" ]; then
+    CRON_SCHEDULE="$BACKUP_CRON_SCHEDULE"
+    DESCRIPTION="From .env: $BACKUP_CRON_SCHEDULE"
+    echo "Schedule (from .env): $DESCRIPTION"
+else
+    echo "Select backup schedule:"
+    echo "1) Daily at 12:00 AM (default)"
+    echo "2) Daily at 2:00 AM"
+    echo "3) Daily at 3:00 AM"
+    echo "4) Every 6 hours"
+    echo "5) Every 12 hours"
+    echo "6) Weekly (Sunday at 2:00 AM)"
+    echo "7) Custom (manual crontab entry)"
+    echo "8) Cancel"
+    echo ""
 
-read -p "Enter your choice (1-8): " choice
+    read -p "Enter your choice (1-8): " choice
 
-case $choice in
-    1)
-        CRON_SCHEDULE="0 0 * * *"
-        DESCRIPTION="Daily at 12:00 AM"
-        ;;
-    2)
-        CRON_SCHEDULE="0 2 * * *"
-        DESCRIPTION="Daily at 2:00 AM"
-        ;;
-    3)
-        CRON_SCHEDULE="0 3 * * *"
-        DESCRIPTION="Daily at 3:00 AM"
-        ;;
-    4)
-        CRON_SCHEDULE="0 */6 * * *"
-        DESCRIPTION="Every 6 hours"
-        ;;
-    5)
-        CRON_SCHEDULE="0 */12 * * *"
-        DESCRIPTION="Every 12 hours"
-        ;;
-    6)
-        CRON_SCHEDULE="0 2 * * 0"
-        DESCRIPTION="Weekly on Sunday at 2:00 AM"
-        ;;
-    7)
-        echo ""
-        read -p "Enter custom crontab schedule (e.g., '0 0 * * *'): " CRON_SCHEDULE
-        DESCRIPTION="Custom schedule: $CRON_SCHEDULE"
-        ;;
-    8)
-        echo "Installation cancelled."
-        exit 0
-        ;;
-    *)
-        echo "Invalid choice. Installation cancelled."
-        exit 1
-        ;;
-esac
+    case $choice in
+        1)
+            CRON_SCHEDULE="0 0 * * *"
+            DESCRIPTION="Daily at 12:00 AM"
+            ;;
+        2)
+            CRON_SCHEDULE="0 2 * * *"
+            DESCRIPTION="Daily at 2:00 AM"
+            ;;
+        3)
+            CRON_SCHEDULE="0 3 * * *"
+            DESCRIPTION="Daily at 3:00 AM"
+            ;;
+        4)
+            CRON_SCHEDULE="0 */6 * * *"
+            DESCRIPTION="Every 6 hours"
+            ;;
+        5)
+            CRON_SCHEDULE="0 */12 * * *"
+            DESCRIPTION="Every 12 hours"
+            ;;
+        6)
+            CRON_SCHEDULE="0 2 * * 0"
+            DESCRIPTION="Weekly on Sunday at 2:00 AM"
+            ;;
+        7)
+            echo ""
+            read -p "Enter custom crontab schedule (e.g., '0 0 * * *'): " CRON_SCHEDULE
+            DESCRIPTION="Custom schedule: $CRON_SCHEDULE"
+            ;;
+        8)
+            echo "Installation cancelled."
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice. Installation cancelled."
+            exit 1
+            ;;
+    esac
+fi
 
 echo ""
 echo "Schedule: $DESCRIPTION"
 echo ""
 
-# Ask for backup mode
-echo "Select backup mode:"
-echo "1) Local + Remote (default - upload to rclone)"
-echo "2) Local only (--local flag)"
-echo ""
+# Ask for backup mode (skip if BACKUP_CRON_MODE set in .env)
+if [ -n "$BACKUP_CRON_MODE" ]; then
+    case "$BACKUP_CRON_MODE" in
+        local)
+            BACKUP_FLAGS="--local"
+            MODE_DESCRIPTION="Local only"
+            ;;
+        remote)
+            BACKUP_FLAGS=""
+            MODE_DESCRIPTION="Local + Remote"
+            ;;
+        *)
+            echo "Error: BACKUP_CRON_MODE must be 'local' or 'remote' (got: $BACKUP_CRON_MODE)"
+            exit 1
+            ;;
+    esac
+    echo "Backup mode (from .env): $MODE_DESCRIPTION"
+else
+    echo "Select backup mode:"
+    echo "1) Local + Remote (default - upload to rclone)"
+    echo "2) Local only (--local flag)"
+    echo ""
 
-read -p "Enter your choice (1-2): " mode_choice
+    read -p "Enter your choice (1-2): " mode_choice
 
-case $mode_choice in
-    1)
-        BACKUP_FLAGS=""
-        MODE_DESCRIPTION="Local + Remote"
-        ;;
-    2)
-        BACKUP_FLAGS="--local"
-        MODE_DESCRIPTION="Local only"
-        ;;
-    *)
-        echo "Invalid choice. Using default (Local + Remote)."
-        BACKUP_FLAGS=""
-        MODE_DESCRIPTION="Local + Remote"
-        ;;
-esac
+    case $mode_choice in
+        1)
+            BACKUP_FLAGS=""
+            MODE_DESCRIPTION="Local + Remote"
+            ;;
+        2)
+            BACKUP_FLAGS="--local"
+            MODE_DESCRIPTION="Local only"
+            ;;
+        *)
+            echo "Invalid choice. Using default (Local + Remote)."
+            BACKUP_FLAGS=""
+            MODE_DESCRIPTION="Local + Remote"
+            ;;
+    esac
+fi
 
 echo ""
 echo "Backup mode: $MODE_DESCRIPTION"

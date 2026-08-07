@@ -132,7 +132,7 @@ list_remote_backups() {
     REMOTE_PATH="${RCLONE_CONFIG_NAME}:${RCLONE_REMOTE_PATH}"
     rclone lsf "${REMOTE_PATH}" --files-only --format "ps" --separator "|" \
         --include "${PREFIX}_*.7z" 2>/dev/null \
-        | grep -E "^${PREFIX}_[0-9]{8}\.7z\|[0-9]+$" \
+        | grep -E "^${PREFIX}_[0-9]{8}_[0-9]{4}\.7z\|[0-9]+$" \
         | sort -t'|' -k1,1r \
         | head -n "$MAX_REMOTE_BACKUPS"
 }
@@ -140,7 +140,7 @@ list_remote_backups() {
 # Function to get backup date from filename
 get_backup_date() {
     local filename=$(basename "$1")
-    echo "$filename" | sed "s/${PREFIX}_\([0-9]\{8\}\)\.7z/\1/"
+    echo "$filename" | grep -oE '[0-9]{8}' | head -1
 }
 
 # Function to format date for display
@@ -362,6 +362,14 @@ read -r
 # Mark restore as in progress
 RESTORE_IN_PROGRESS=true
 
+# Stop the OmniRoute containers so they cannot write to the data dir during restore
+echo ""
+echo "Stopping OmniRoute containers..."
+if ! systemctl --user stop omniroute.service omniroute-redis.service; then
+    echo "Warning: Failed to stop OmniRoute containers"
+    echo "Restore may conflict with a running container."
+fi
+
 # Create pre-restore backup of the current state
 if [ -d "$HOST_DATA_DIR" ] && [ -n "$(ls -A "$HOST_DATA_DIR" 2>/dev/null)" ]; then
     PRE_RESTORE_FILE="${BACKUP_DIR}/pre-restore-${PREFIX}_$(date +%Y%m%d_%H%M%S).7z"
@@ -397,13 +405,13 @@ fi
 echo "Backup extracted successfully"
 echo ""
 
-# Restart the OmniRoute containers (app + redis sidecar)
-echo "Restarting OmniRoute containers..."
-if systemctl --user restart omniroute.service omniroute-redis.service; then
-    echo "OmniRoute containers restarted successfully"
+# Start the OmniRoute containers (app + redis sidecar)
+echo "Starting OmniRoute containers..."
+if systemctl --user start omniroute.service omniroute-redis.service; then
+    echo "OmniRoute containers started successfully"
 else
-    echo "Warning: Failed to restart OmniRoute containers"
-    echo "Restart manually: systemctl --user restart omniroute.service omniroute-redis.service"
+    echo "Warning: Failed to start OmniRoute containers"
+    echo "Start manually: systemctl --user start omniroute.service omniroute-redis.service"
 fi
 
 echo ""
