@@ -143,6 +143,9 @@ EXCLUDES=(
     -xr!desktop
     -xr!workspace
     -xr!redis
+    -xr!call_logs
+    -xr!logs
+    -xr!db_backups
     -xr!tmp_fuzz
     -xr!lsp
     -xr!bin
