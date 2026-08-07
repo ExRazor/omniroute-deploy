@@ -195,6 +195,7 @@ EXCLUDES=(
     -xr!backups
     -xr!sandboxes
     -xr!desktop
+    -xr!workspace
     -xr!*.log
     -xr!*.pid
     -xr!*.lock
