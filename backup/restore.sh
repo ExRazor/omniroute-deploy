@@ -190,6 +190,7 @@ EXCLUDES=(
     -xr!cache
     -xr!image_cache
     -xr!audio_cache
+    -xr!ms-playwright
     -xr!home/.cache
     -xr!home/.npm
     -xr!backups
