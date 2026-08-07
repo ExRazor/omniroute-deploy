@@ -156,6 +156,8 @@ EXCLUDES=(
 
 # Archive the data dir contents (relative paths so restore extracts directly)
 # 7z always runs via sudo -n: data dir is root-owned (container bind-mount).
+# Ensure the invoking user can cd into the dir (root-owned 700 otherwise).
+sudo -n chmod 755 "$HOST_DATA_DIR" 2>/dev/null || true
 SEVENZIP_CMD=(sudo -n "$SEVENZIP")
 ( cd "$HOST_DATA_DIR" && "${SEVENZIP_CMD[@]}" a -mx=5 "$BACKUP_FILE" . "${EXCLUDES[@]}" )
 SEVENZIP_EXIT=$?
