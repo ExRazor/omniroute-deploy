@@ -19,7 +19,7 @@ set +a
 
 # Restore configuration (defaults)
 PREFIX="${PREFIX:-omniroute}"
-RCLONE_CONFIG_NAME="${RCLONE_CONFIG_NAME:-omniroute-backup}"
+RCLONE_CONFIG_NAME="${RCLONE_CONFIG_NAME:-omniroute}"
 RCLONE_REMOTE_PATH="${RCLONE_REMOTE_PATH:-/}"
 
 # Data dir to restore into (HOST_DATA_DIR from .env, default = <repo>/data)
