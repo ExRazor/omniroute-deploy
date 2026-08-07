@@ -352,11 +352,8 @@ echo "Location: $SELECTED_LOCATION"
 
 # Validate backup file integrity before restore
 echo "Validating backup file integrity..."
-# BACKUP_7Z_SUDO=true → run 7z via sudo -n (needed when data dir is root-owned)
-SEVENZIP_CMD=("$SEVENZIP")
-if [ "${BACKUP_7Z_SUDO:-false}" = "true" ]; then
-    SEVENZIP_CMD=(sudo -n "$SEVENZIP")
-fi
+# 7z always runs via sudo -n: data dir is root-owned (container bind-mount)
+SEVENZIP_CMD=(sudo -n "$SEVENZIP")
 "${SEVENZIP_CMD[@]}" t "$BACKUP_FILE" > /dev/null 2>&1
 SEVENZIP_T_EXIT=$?
 # 7z exit codes: 0 = OK, 1 = warning — archive is readable and valid
@@ -405,13 +402,8 @@ fi
 # Remove existing data dir contents
 echo ""
 echo "Removing existing data at $HOST_DATA_DIR..."
-if [ "${BACKUP_7Z_SUDO:-false}" = "true" ]; then
-    sudo -n rm -rf "$HOST_DATA_DIR"
-    sudo -n mkdir -p "$HOST_DATA_DIR"
-else
-    rm -rf "$HOST_DATA_DIR"
-    mkdir -p "$HOST_DATA_DIR"
-fi
+sudo -n rm -rf "$HOST_DATA_DIR"
+sudo -n mkdir -p "$HOST_DATA_DIR"
 
 # Extract backup archive into the data dir
 echo ""
@@ -424,10 +416,8 @@ if ! "${SEVENZIP_CMD[@]}" x -y "$BACKUP_FILE" -o"$HOST_DATA_DIR"; then
     exit 1
 fi
 # Restore ownership of extracted data to the invoking user (7z ran as root via sudo)
-if [ "${BACKUP_7Z_SUDO:-false}" = "true" ]; then
-    sudo -n chown -R "$(id -u):$(id -g)" "$HOST_DATA_DIR" 2>/dev/null || \
-        echo "Warning: could not chown $HOST_DATA_DIR back to user — check permissions manually"
-fi
+sudo -n chown -R "$(id -u):$(id -g)" "$HOST_DATA_DIR" 2>/dev/null || \
+    echo "Warning: could not chown $HOST_DATA_DIR back to user — check permissions manually"
 echo "Backup extracted successfully"
 echo ""
 
